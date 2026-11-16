@@ -1,0 +1,58 @@
+name: Puppeteer pre-publish tests
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: '0.147.0'
+          extended: true
+
+      - name: Start Hugo development server
+        run: hugo server --port 1313 &
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Chrome
+        run: |
+          wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_arm64.deb
+          sudo apt install -y ./google-chrome-stable_current_arm64.deb
+
+      - name: Install Puppeteer
+        run: npm install puppeteer-core
+        working-directory: puppeteer-tests
+
+      - name: Wait for Hugo server
+        run: npx wait-on http://localhost:1313 --timeout 30000
+
+      - name: Test — assert NGINX package is present
+        run: node test-package-status.mjs
+        working-directory: puppeteer-tests
+
+      - name: Test — validate official documentation link
+        run: node test-doc-link.mjs
+        working-directory: puppeteer-tests
+
+      - name: Test — capture screenshot
+        run: node screenshot.mjs
+        working-directory: puppeteer-tests
+
+      - name: Upload screenshot artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-screenshot
+          path: puppeteer-tests/dashboard.png
